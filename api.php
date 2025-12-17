@@ -1,40 +1,53 @@
 <?php
 header('Content-Type: application/json');
-
 require_once 'db.php';
 
-$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 4;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    if (!$data) {
+        echo json_encode([
+            "success" => false,
+            "message" => "No se recibieron datos"
+        ]);
+        exit;
+    }
+
+    echo json_encode([
+        "success" => true,
+        "message" => "Ítem recibido correctamente",
+        "item" => $data
+    ]);
+    exit;
+}
+
+
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
 $offset = ($page - 1) * $perPage;
 
 $nombre = $_GET['nombre'] ?? '';
 $categoria = $_GET['categoria'] ?? '';
 
 $sql = "SELECT * FROM items WHERE 1=1";
+
 $params = [];
 
 if ($nombre !== '') {
-    $sql .= " AND name LIKE :nombre";
-    $params[':nombre'] = "%$nombre%";
+    $sql .= " AND name LIKE ?";
+    $params[] = "%$nombre%";
 }
 
 if ($categoria !== '') {
-    $sql .= " AND categoria = :categoria";
-    $params[':categoria'] = $categoria;
+    $sql .= " AND categoria = ?";
+    $params[] = $categoria;
 }
 
-$sql .= " LIMIT :limit OFFSET :offset";
+$sql .= " LIMIT $perPage OFFSET $offset";
 
 $stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 
-foreach ($params as $key => $value) {
-    $stmt->bindValue($key, $value);
-}
-
-$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-
-$stmt->execute();
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 echo json_encode([
